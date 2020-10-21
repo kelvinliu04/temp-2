@@ -130,7 +130,7 @@ def _send_button_qiscus(email, name, room_id, app_config):
         	"type": "buttons",
         	"room_id": str(room_id),
         	"payload": {
-        		"text": "Teams Online Meeting".format(email),
+        		"text": "Teams Online Meeting",
         	    "buttons": [
             	        {
         	            "label": "Join",
@@ -152,12 +152,12 @@ def _send_button_login_azure(email, name, room_id, app_config):
     send_url = 'https://kelvinlinux.azurewebsites.net/login'
 
     json = {
-        	"sender_email": app_config.agent_email, 
+        	"sender_email": str(app_config.agent_email), 
         	"message": "Hi good morning",
         	"type": "buttons",
         	"room_id": str(room_id),
         	"payload": {
-        		"text": "Login Azure First(Agent Only)".format(email),
+        		"text": "Login Azure First(Agent Only)",
         	    "buttons": [
             	        {
         	            "label": "Login",
@@ -170,7 +170,7 @@ def _send_button_login_azure(email, name, room_id, app_config):
         	} 
         }
     base_url = "https://multichannel.qiscus.com/"
-    app_code = app_config.app_code
+    app_code = str(app_config.app_code)
     url = base_url + app_code + "/bot"
     headers = {'Content-Type': 'application/json'}
     result = requests.post(url, headers=headers, json=json)
