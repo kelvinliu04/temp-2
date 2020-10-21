@@ -83,11 +83,16 @@ def startonlinemeeting():
         name = agent['name']
         
         room_id = req_json['room_id']
+        
+        threading3 = threading.Thread(target=_send_button_login_azure, args=(email, name, room_id, app_config, ))
+        threading3.start()
         token = _get_token_from_cache(app_config.SCOPE)
         if not token:
+            print('login')
             threading2 = threading.Thread(target=_send_button_login_azure, args=(email, name, room_id, app_config, ))
             threading2.start()
         else:
+            print('teams')
             threading1 = threading.Thread(target=_send_button_qiscus, args=(email, name, room_id, app_config, ))
             threading1.start()
     return req_json
@@ -152,10 +157,10 @@ def _send_button_login_azure(email, name, room_id, app_config):
         	"type": "buttons",
         	"room_id": str(room_id),
         	"payload": {
-        		"text": "Teams Online Meeting".format(email),
+        		"text": "Login Azure First(Agent Only)".format(email),
         	    "buttons": [
             	        {
-        	            "label": "Join",
+        	            "label": "Login",
         	            "type": "link",
         	            "payload": {
         	                "url": "{}".format(send_url)
