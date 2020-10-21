@@ -52,6 +52,11 @@ def authorized():
     return redirect(url_for("index"))
 
 
+@app.route("/getId")
+def getid():
+    graph = requests.get(url="https://graph.microsoft.com/v1.0/me").json()
+    return render_template('display.html', result=graph)
+
 @app.route("/logout")
 def logout():
     session.clear()  # Wipe out user and its token cache from session
@@ -78,9 +83,13 @@ def startonlinemeeting():
         name = agent['name']
         
         room_id = req_json['room_id']
-        
-        threading1 = threading.Thread(target=_send_button_qiscus, args=(email, name, room_id, ))
-        threading1.start()
+        token = _get_token_from_cache(app_config.SCOPE)
+        if not token:
+            threading2 = threading.Thread(target=_send_button_login_azure, args=(email, name, room_id, app_config, ))
+            threading2.start()
+        else:
+            threading1 = threading.Thread(target=_send_button_qiscus, args=(email, name, room_id, app_config, ))
+            threading1.start()
     return req_json
 
 #----------------------------------------------------------------------------------------------------------------------------------
@@ -107,11 +116,11 @@ def _save_cache(cache):
         session["token_cache"] = cache.serialize()
         
         
-def _send_button_qiscus(email, name, room_id):
+def _send_button_qiscus(email, name, room_id, app_config):
     teams_url = _teams_start()
 
     json = {
-        	"sender_email": "gume-br1lmyldfzyvrw2j_admin@qismo.com", 
+        	"sender_email": app_config.agent_email, 
         	"message": "Hi good morning",
         	"type": "buttons",
         	"room_id": str(room_id),
@@ -129,7 +138,34 @@ def _send_button_qiscus(email, name, room_id):
         	} 
         }
     base_url = "https://multichannel.qiscus.com/"
-    app_code = 'gume-br1lmyldfzyvrw2j'
+    app_code = app_config.app_code
+    url = base_url + app_code + "/bot"
+    headers = {'Content-Type': 'application/json'}
+    result = requests.post(url, headers=headers, json=json)
+
+def _send_button_login_azure(email, name, room_id, app_config):
+    send_url = 'https://kelvinlinux.azurewebsites.net/login'
+
+    json = {
+        	"sender_email": app_config.agent_email, 
+        	"message": "Hi good morning",
+        	"type": "buttons",
+        	"room_id": str(room_id),
+        	"payload": {
+        		"text": "Teams Online Meeting".format(email),
+        	    "buttons": [
+            	        {
+        	            "label": "Join",
+        	            "type": "link",
+        	            "payload": {
+        	                "url": "{}".format(send_url)
+        	            }
+        	        }
+        		]
+        	} 
+        }
+    base_url = "https://multichannel.qiscus.com/"
+    app_code = app_config.app_code
     url = base_url + app_code + "/bot"
     headers = {'Content-Type': 'application/json'}
     result = requests.post(url, headers=headers, json=json)
@@ -138,7 +174,6 @@ def _send_button_qiscus(email, name, room_id):
 def _teams_start():
     #token = _get_token_from_pw()
     token = _get_token_from_cache(app_config.SCOPE)
-    #print(token)
     if not token:
         return redirect(url_for("login"))
     
@@ -154,16 +189,7 @@ def _teams_start():
         json ={
             #"autoAdmittedUsers":"everyone",
             "startDateTime":_convert_dt_string(startDT),
-            "endDateTime":_convert_dt_string(endDT),
-            "participants": {
-                "organizer": {
-                    "identity": {
-                        "user": {
-                            "id": "30374d5c-c7df-4a1e-83f1-7d2e5e135b16"
-                            }
-                        }
-                    }
-                }
+            #"endDateTime":_convert_dt_string(endDT),
             }
         ).json()
     return graph_data
@@ -173,8 +199,9 @@ def _teams_event():
     token = _get_token_from_cache(app_config.SCOPE)
     if not token:
         return redirect(url_for("login"))
+    myid = getid()
     graph_data = requests.post(  
-        "https://graph.microsoft.com/v1.0/users/c1141e56-e9e9-4fa7-94d5-7f84c2141bc7/events",
+        "https://graph.microsoft.com/v1.0/users/{}/events".format(myid),
         headers={'Authorization': 'Bearer ' + token['access_token'],
                  'Content-type':'application/json'},
         
@@ -189,6 +216,14 @@ def _teams_event():
             }
         ).json()
     return graph_data
+
+
+def getid():
+    token = _get_token_from_cache(app_config.SCOPE)
+    if not token:
+        return redirect(url_for("login"))
+    graph = requests.get(url="https://graph.microsoft.com/v1.0/me",  headers={'Authorization': 'Bearer ' + token['access_token']},).json()
+    return graph['id']
     
 #----------------------------------------------------------------------------------------------
 def _get_token_from_cache(scope=None):

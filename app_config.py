@@ -26,10 +26,13 @@ ENDPOINT = 'https://graph.microsoft.com/v1.0/users'  # This resource requires no
 
 # You can find the proper permission names from this document
 # https://docs.microsoft.com/en-us/graph/permissions-reference
-SCOPE = ["User.ReadBasic.All", "OnlineMeetings.ReadWrite", "Calendars.ReadWrite"]
+SCOPE = ["OnlineMeetings.ReadWrite", "User.ReadBasic.All"]
 
 SESSION_TYPE = "filesystem"  # Specifies the token cache should be stored in server-side session
 
 
 username = 'kelvin@synnexmetrodataindonesia.onmicrosoft.com'
 pw = 'Testingapi44'
+
+agent_email = "gume-br1lmyldfzyvrw2j_admin@qismo.com"
+app_code = 'gume-br1lmyldfzyvrw2j'
