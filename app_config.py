@@ -34,5 +34,7 @@ SESSION_TYPE = "filesystem"  # Specifies the token cache should be stored in ser
 username = 'kelvin@synnexmetrodataindonesia.onmicrosoft.com'
 pw = 'Testingapi44'
 
-agent_email = "gume-br1lmyldfzyvrw2j_admin@qismo.com"
-app_code = 'gume-br1lmyldfzyvrw2j'
+#agent_email = "gume-br1lmyldfzyvrw2j_admin@qismo.com"
+#app_code = 'gume-br1lmyldfzyvrw2j'
+agent_email = "tyes-razurkhhoyewouxd_admin@qismo.com"
+app_code = "tyes-razurkhhoyewouxd"
