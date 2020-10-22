@@ -117,7 +117,7 @@ def _teams_start():
             #"endDateTime":_convert_dt_string(endDT),
             }
         ).json()
-    return graph_data
+    return graph_data['joinWebUrl']
 
 #####-------------------------------------------------------------------------- qiscus
 def _send_button_qiscus(email, name, room_id, app_config):
@@ -261,7 +261,7 @@ def _teams_event():
               "onlineMeetingProvider": "teamsForBusiness"
             }
         ).json()
-    return graph_data
+    return graph_data['joinWebUrl']
 
 def getid():
     token = _get_token_from_cache(app_config.SCOPE)
