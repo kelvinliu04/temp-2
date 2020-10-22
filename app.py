@@ -1,23 +1,38 @@
 import uuid
 from flask import Flask, session, redirect, url_for, request, render_template
 from flask_session import Session
-import json
+
+from flask_sqlalchemy import SQLAlchemy
+
 from datetime import datetime, timedelta
 import requests
 import msal
 import app_config
 import threading
+import time
 
 app = Flask(__name__)
 app.config.from_object(app_config)
 Session(app)
 
+db = SQLAlchemy(app)
+
+class User123(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    ts = db.Column(db.String(80), unique=True, nullable=False)
+    token = db.Column(db.String(200), unique=False, nullable=False)
+
+    def get_token(self):
+        return self.token
+db.create_all()
+
 from werkzeug.middleware.proxy_fix import ProxyFix
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
-@app.route('/hw')
-def hello_world():
-    return 'Hello, World!'
+@app.route("/token")
+def test1234():
+    return _get_token_db()
+    
 
 @app.route("/")
 def index():
@@ -49,13 +64,9 @@ def authorized():
             return render_template("auth_error.html", result=result)
         session["user"] = result.get("id_token_claims")
         _save_cache(cache)
+        _save_token_db(result)
     return redirect(url_for("index"))
 
-
-@app.route("/getId")
-def getid():
-    graph = requests.get(url="https://graph.microsoft.com/v1.0/me").json()
-    return render_template('display.html', result=graph)
 
 @app.route("/logout")
 def logout():
@@ -69,11 +80,6 @@ def onlinemeeting():
     teams_url = _teams_start()
     return teams_url
     
-@app.route('/onlinemeeting2')
-def onlinemeeting2():
-    teams_url = _teams_event()
-    return teams_url
-
 @app.route('/startonlinemeeting', methods=['POST']) #allow both GET and POST requests
 def startonlinemeeting():
     req_json = request.get_json()
@@ -84,43 +90,36 @@ def startonlinemeeting():
         
         room_id = req_json['room_id']
         
-        threading3 = threading.Thread(target=_send_button_login_azure, args=(email, name, room_id, app_config, ))
-        threading3.start()
-        token = _get_token_from_cache(app_config.SCOPE)
-        if not token:
-            print('login')
-            threading2 = threading.Thread(target=_send_button_login_azure, args=(email, name, room_id, app_config, ))
-            threading2.start()
-        else:
-            print('teams')
-            threading1 = threading.Thread(target=_send_button_qiscus, args=(email, name, room_id, app_config, ))
-            threading1.start()
+
+        print('teams')
+        threading1 = threading.Thread(target=_send_button_qiscus, args=(email, name, room_id, app_config, ))
+        threading1.start()
     return req_json
 
-#----------------------------------------------------------------------------------------------------------------------------------
-def _convert_dt_string(datetime):
-    return datetime.strftime("%Y-%m-%dT%H:%M:%S-07:00")
-
-def _get_token_from_pw():
-    #cache = _load_cache()
-    temp1 = msal.PublicClientApplication(app_config.CLIENT_ID, authority=app_config.AUTHORITYORG)
-    result = temp1.acquire_token_by_username_password(
-        username=app_config.username, password=app_config.pw, data={'client_secret':app_config.CLIENT_SECRET}, scopes=app_config.SCOPE)
-    #session["user"] = result.get("id_token_claims")
-    #_save_cache(cache)
-    return result
-
-def _load_cache():
-    cache = msal.SerializableTokenCache()
-    if session.get("token_cache"):
-        cache.deserialize(session["token_cache"])
-    return cache
-
-def _save_cache(cache):
-    if cache.has_state_changed:
-        session["token_cache"] = cache.serialize()
+def _teams_start():
+    #token = _get_token_from_pw()
+    #token = _get_token_from_cache(app_config.SCOPE)
+    token = _get_token_db()
+    if not token:
+        return redirect(url_for("login"))
+    
+    duration = 10 # in minutes
+    startDT = datetime.utcnow() - timedelta(hours=7)
+    endDT = startDT + timedelta(minutes=duration)
+    graph_data = requests.post(  
+        "https://graph.microsoft.com/v1.0/me/onlineMeetings",
+        headers={'Authorization': 'Bearer ' + token,
+                 'Content-type':'application/json'},
         
-        
+        json ={
+            #"autoAdmittedUsers":"everyone",
+            "startDateTime":_convert_dt_string(startDT),
+            #"endDateTime":_convert_dt_string(endDT),
+            }
+        ).json()
+    return graph_data
+
+#####-------------------------------------------------------------------------- qiscus
 def _send_button_qiscus(email, name, room_id, app_config):
     teams_url = _teams_start()
 
@@ -173,31 +172,73 @@ def _send_button_login_azure(email, name, room_id, app_config):
     app_code = str(app_config.app_code)
     url = base_url + app_code + "/bot"
     headers = {'Content-Type': 'application/json'}
-    result = requests.post(url, headers=headers, json=json)
-    
-    
-def _teams_start():
-    #token = _get_token_from_pw()
-    token = _get_token_from_cache(app_config.SCOPE)
-    if not token:
-        return redirect(url_for("login"))
-    
-    duration = 10 # in minutes
-    startDT = datetime.utcnow() - timedelta(hours=7)
-    endDT = startDT + timedelta(minutes=duration)
+    result = requests.post(url, headers=headers, json=json)    
 
-    graph_data = requests.post(  
-        "https://graph.microsoft.com/v1.0/me/onlineMeetings",
-        headers={'Authorization': 'Bearer ' + token['access_token'],
-                 'Content-type':'application/json'},
+#----------------------------------------------------------------------------------------------------------------------------------
+### function 
+def _convert_dt_string(datetime):
+    return datetime.strftime("%Y-%m-%dT%H:%M:%S-07:00")
+
+def _get_token_from_pw():
+    #cache = _load_cache()
+    temp1 = msal.PublicClientApplication(app_config.CLIENT_ID, authority=app_config.AUTHORITYORG)
+    result = temp1.acquire_token_by_username_password(
+        username=app_config.username, password=app_config.pw, data={'client_secret':app_config.CLIENT_SECRET}, scopes=app_config.SCOPE)
+    #session["user"] = result.get("id_token_claims")
+    #_save_cache(cache)
+    return result
+
+def _load_cache():
+    cache = msal.SerializableTokenCache()
+    if session.get("token_cache"):
+        cache.deserialize(session["token_cache"])
+    return cache
+
+def _save_cache(cache):
+    if cache.has_state_changed:
+        session["token_cache"] = cache.serialize()
+
+def _save_token_db(result):
+    data1 = User123(ts=str(time.time()), token=result['access_token'] )
+    db.session.add(data1)
+    db.session.commit()
+    db.session.rollback()
+    db.session.close()
+    
+def _get_token_db():
+    token = User123.query.all()[-1].get_token()
+    return token
+    
         
-        json ={
-            #"autoAdmittedUsers":"everyone",
-            "startDateTime":_convert_dt_string(startDT),
-            #"endDateTime":_convert_dt_string(endDT),
-            }
-        ).json()
-    return graph_data
+def _get_token_from_cache(scope=None):
+    cache = _load_cache()  # This web app maintains one cache per session
+    cca = _build_msal_app(cache=cache)
+    accounts = cca.get_accounts()
+    if accounts:  # So all account(s) belong to the current signed-in user
+        result = cca.acquire_token_silent(scope, account=accounts[0])
+        _save_cache(cache)
+        return result
+    
+def _build_msal_app(cache=None, authority=None):
+    return msal.ConfidentialClientApplication(
+        app_config.CLIENT_ID, authority=authority or app_config.AUTHORITY,
+        client_credential=app_config.CLIENT_SECRET, token_cache=cache)
+
+
+def _build_auth_url(authority=None, scopes=None, state=None):
+    return _build_msal_app(authority=authority).get_authorization_request_url(
+        scopes or [],
+        state=state or str(uuid.uuid4()),
+        redirect_uri=url_for("authorized", _external=True))  
+
+    
+    
+
+#----------------------------------------------------------------------------------------------
+@app.route('/onlinemeeting2')
+def onlinemeeting2():
+    teams_url = _teams_event()
+    return teams_url
 
 def _teams_event():
     #token = _get_token_from_pw()
@@ -222,36 +263,15 @@ def _teams_event():
         ).json()
     return graph_data
 
-
 def getid():
     token = _get_token_from_cache(app_config.SCOPE)
     if not token:
         return redirect(url_for("login"))
+    
     graph = requests.get(url="https://graph.microsoft.com/v1.0/me",  headers={'Authorization': 'Bearer ' + token['access_token']},).json()
     return graph['id']
     
 #----------------------------------------------------------------------------------------------
-def _get_token_from_cache(scope=None):
-    cache = _load_cache()  # This web app maintains one cache per session
-    cca = _build_msal_app(cache=cache)
-    accounts = cca.get_accounts()
-    if accounts:  # So all account(s) belong to the current signed-in user
-        result = cca.acquire_token_silent(scope, account=accounts[0])
-        _save_cache(cache)
-        return result
-    
-def _build_msal_app(cache=None, authority=None):
-    return msal.ConfidentialClientApplication(
-        app_config.CLIENT_ID, authority=authority or app_config.AUTHORITY,
-        client_credential=app_config.CLIENT_SECRET, token_cache=cache)
-
-
-def _build_auth_url(authority=None, scopes=None, state=None):
-    return _build_msal_app(authority=authority).get_authorization_request_url(
-        scopes or [],
-        state=state or str(uuid.uuid4()),
-        redirect_uri=url_for("authorized", _external=True))
-
 app.jinja_env.globals.update(_build_auth_url=_build_auth_url)  # Used in template
 
                   

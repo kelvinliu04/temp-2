@@ -29,7 +29,7 @@ ENDPOINT = 'https://graph.microsoft.com/v1.0/users'  # This resource requires no
 SCOPE = ["OnlineMeetings.ReadWrite", "User.ReadBasic.All"]
 
 SESSION_TYPE = "filesystem"  # Specifies the token cache should be stored in server-side session
-
+SQLALCHEMY_DATABASE_URI = 'sqlite:////test.db'
 
 username = 'kelvin@synnexmetrodataindonesia.onmicrosoft.com'
 pw = 'Testingapi44'
